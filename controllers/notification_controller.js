@@ -1,0 +1,96 @@
+const { error } = require("console");
+const { adminApp, admin } = require("../config/firebase");
+const helper = require("../helper/helper");
+const catchAsyncFunc = require("../middlewares/catchAsyncFunc");
+const Notification = require("../models/Notification");
+const User = require("../models/User");
+const { sendNotification } = require("../utils/sendNotification");
+
+exports.saveFCMToken = catchAsyncFunc(async (req, res) => {
+  const { fcmToken } = req.body;
+
+  if (!fcmToken)
+    return helper.sendError(400, res, { error: "FCM Token is required" }, req);
+
+  const checkUser = await User.findById(req.user);
+  if (checkUser) {
+    checkUser.fcmToken = fcmToken;
+    await checkUser.save();
+    return helper.sendSuccess(
+      res,
+      {
+        msg: "FCM Token saved successfully.",
+      },
+
+      req
+    );
+  } else {
+    return helper.sendError(404, res, { error: "User not found" }, req);
+  }
+});
+
+exports.customFeature = catchAsyncFunc(async (req, res) => {
+  try {
+    const result = await sendNotification(
+      "First message",
+      "First title",
+      { data: "First data" },
+      req.user
+    );
+
+    if (result.success) {
+      return helper.sendSuccess(
+        res,
+        {
+          msg: "Notification sent successfully.",
+        },
+
+        req
+      );
+    }
+    console.log(result);
+  } catch (err) {
+    return helper.sendError(400, res, { error: err.message }, req);
+  }
+});
+
+exports.getAllNotifications = catchAsyncFunc(async (req, res) => {
+  const { page, limit } = req.query;
+
+  const checkUser = await User.findById(req.user);
+  if (!checkUser) {
+    return helper.sendError(
+      400,
+      res,
+      {
+        error: "User not found",
+      },
+      req
+    );
+  }
+
+  const notifications = await Notification.find({
+    user: req.user,
+  })
+    .populate("user", "first_name last_name email profilePic createdAt")
+    .sort({ createdAt: -1 })
+  if (!notifications) {
+    return helper.sendSuccess(
+      res,
+      {
+        msg: "You are caught up with all notifications.",
+      },
+      req
+    );
+  }
+
+  return helper.sendSuccess(
+    res,
+    {
+      msg: "Notifications fetched successfully.",
+      notifications,
+    },
+
+    req
+  );
+});
